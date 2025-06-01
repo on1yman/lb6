@@ -7,4 +7,8 @@ project(formatter)
 
 add_library(formatter STATIC ${CMAKE_CURRENT_SOURCE_DIR}/formatter.cpp)
 
-target_include_directories(formatter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+#target_include_directories(formatter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(formatter PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
