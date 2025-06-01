@@ -1,4 +1,4 @@
-name: CI workflow
+name: CI workflow for homework
 
 on:
   [push, pull_request]
@@ -12,8 +12,10 @@ jobs:
         include:
           - cpp_comp: g++
             c_comp: gcc
+            source: true
           - cpp_comp: clang++
             c_comp: clang
+            source: false
 
     steps:
       - name: checking out repository
@@ -27,8 +29,12 @@ jobs:
         run:  |
           echo "1 -5  6" | _build/solver_application/solver_app
           _build/hello_world_application/hello
-      - name: status info
-        run: echo ${{ job.status }} is status of job
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: _build${{matrix.c_comp}}
+          path: _build/  
+          retention-days: 1
 
   build_on_windows:
     runs-on: ${{matrix.os}}
@@ -44,11 +50,159 @@ jobs:
       - name: preparing build
         run:  cmake . -B_build 
       - name: building
-        run:  cmake --build _build
-      - name: checking programs output
-        run:  |
-          echo "1 -5  6" | _build\solver_application\Debug\solver_app 
-          _build\hello_world_application\Debug\hello
+        run:  cmake --build _build --config Release
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows_build
+          path: _build/    
+          retention-days: 1
 
-      - name: status info
-        run: echo ${{ job.status }} is status of job
+  build_on_mac:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: checking out repository
+        uses: actions/checkout@v4
+
+      - name: preparing build
+        run:  cmake -H. -B_build
+      - name: building
+        run:  cmake --build _build
+  
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: _buildmac
+          path: _build/  
+          retention-days: 1
+    
+  Create_sources_deb_rpm:
+    name: Create sources, deb, rpm packages
+    needs: [build_on_linux, build_on_mac, build_on_windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true  
+    steps:
+      - name: checking out repository
+        uses: actions/checkout@v4
+        
+      - name: install dependencies
+        run: sudo apt-get install rpm
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: _buildgcc
+          path: _build/ 
+      - name: create source files
+        run: |
+          cd _build/ 
+          mkdir _artifacts
+          cpack -G "DEB"
+          cpack -G "RPM"
+          mv *.deb _artifacts
+          mv *.rpm _artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux files
+          path: _build/_artifacts/
+          retention-days: 1
+
+  Create_dmg:
+    name: Create .dmg package
+    needs: [build_on_linux, build_on_mac, build_on_windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest 
+    steps:
+      - name: checking out repository
+        uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: _buildmac
+          path: _build/ 
+      - name: create dmg files
+        run: |
+          cd _build/ 
+          mkdir _artifacts
+          cpack -G "DragNDrop"
+          mv *.dmg _artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac files
+          path: _build/_artifacts/
+          retention-days: 1
+
+  Create_msi:
+    name: Create .msi and .exe files
+    needs: [build_on_linux, build_on_mac, build_on_windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest 
+    steps:
+      - name: checking out repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows_build
+          path: _build/ 
+      - name: create .msi and .exe files
+        run: |
+          cd _build/
+          mkdir _artifacts
+          cpack -G "NSIS"
+          cpack -G "WIX"
+          move "*.exe"  "_artifacts\"
+          move "*.msi"  "_artifacts\"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: win files
+          path: _build/_artifacts/
+          retention-days: 1
+
+  create_release:
+    name: Create release
+    needs: [Create_sources_deb_rpm, Create_dmg, Create_msi]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest 
+    steps:
+      - name: checking out repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts mac
+        uses: actions/download-artifact@v4
+        with:
+          name: mac files
+          path: release/ 
+      - name: Download artifacts win
+        uses: actions/download-artifact@v4
+        with:
+          name: win files
+          path: release/ 
+      - name: Download artifacts win
+        uses: actions/download-artifact@v4
+        with:
+          name: linux files
+          path: release/ 
+
+      - name: get version
+        run: |
+          version=`grep -P ".*_VERSION_.* \d" CMakeLists.txt |  sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//'`
+          echo "Version=$version" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.Version }}
+          name: Release v${{ env.Version }}
+          body: "Automated release with built binaries and source code."
+          files: |
+            release/*
+          draft: false
+          prerelease: false
