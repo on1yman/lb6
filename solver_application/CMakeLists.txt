@@ -17,6 +17,4 @@ if (NOT TARGET solver_lib)
     add_subdirectory(${s_lib_path} solver_lib)
 endif()
 
-target_include_directories(solver_app PUBLIC ${s_lib_path})
-
 target_link_libraries(solver_app formatter_ex solver)
