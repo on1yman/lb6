@@ -37,12 +37,7 @@ jobs:
           retention-days: 1
 
   build_on_windows:
-    runs-on: ${{matrix.os}}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-
+    runs-on: windows-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
@@ -60,8 +55,6 @@ jobs:
 
   build_on_mac:
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
@@ -79,12 +72,10 @@ jobs:
           retention-days: 1
     
   Create_sources_deb_rpm:
-    name: Create sources, deb, rpm packages
+    name: Create packages
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false  # Изменено на false для продолжения при ошибках
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
@@ -92,133 +83,136 @@ jobs:
       - name: install dependencies
         run: sudo apt-get install -y rpm
         
-      - name: Create required files
+      - name: Create mandatory files
         run: |
-          [ -f ChangeLog.md ] || echo "# Change Log\n* Initial release" > ChangeLog.md
+          echo "# Change Log" > ChangeLog.md
+          echo "* Version ${GITHUB_REF#refs/tags/v} - $(date +'%Y-%m-%d')" >> ChangeLog.md
+          echo "- Initial release" >> ChangeLog.md
           [ -f DESCRIPTION ] || echo "Solver application package" > DESCRIPTION
-          ls -la ChangeLog.md DESCRIPTION
           
-      - name: Download artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
           path: _build/
           
-      - name: create packages
+      - name: Verify files exist
+        run: |
+          ls -la ChangeLog.md DESCRIPTION
+          cp ChangeLog.md DESCRIPTION _build/
+          ls -la _build/ChangeLog.md _build/DESCRIPTION
+          
+      - name: Generate packages
         run: |
           cd _build/
           mkdir -p _artifacts
-          # Сначала DEB, который всегда работает
-          cpack -G "DEB" && mv *.deb _artifacts/ || echo "DEB package failed"
-          # Затем RPM с обработкой ошибок
-          cpack -G "RPM" && mv *.rpm _artifacts/ || echo "RPM package failed"
-          # Всегда создаем архивы
+          cpack -G "DEB" && mv *.deb _artifacts/
+          cpack -G "RPM" && mv *.rpm _artifacts/
           cpack -G "TGZ" && mv *.tar.gz _artifacts/
           cpack -G "ZIP" && mv *.zip _artifacts/
           
-      - name: Upload build artifacts
+      - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: linux files
+          name: linux_files
           path: _build/_artifacts/
           retention-days: 1
 
   Create_dmg:
-    name: Create .dmg package
+    name: Create macOS package
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest 
+    runs-on: macos-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
+        
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildmac
-          path: _build/ 
-      - name: create dmg files
+          path: _build/
+          
+      - name: Create DMG package
         run: |
-          cd _build/ 
+          cd _build/
           mkdir _artifacts
           cpack -G "DragNDrop"
-          mv *.dmg _artifacts
-      - name: Upload build artifacts
+          mv *.dmg _artifacts/
+          
+      - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: mac files
+          name: mac_files
           path: _build/_artifacts/
           retention-days: 1
 
   Create_msi:
-    name: Create .msi and .exe files
+    name: Create Windows packages
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-latest 
+    runs-on: windows-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
-
+        
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows_build
-          path: _build/ 
-      - name: create .msi and .exe files
+          path: _build/
+          
+      - name: Create Windows installers
         run: |
           cd _build/
           mkdir _artifacts
-          cpack -G "NSIS" && move "*.exe" "_artifacts\" || echo "EXE creation failed"
-          cpack -G "WIX" && move "*.msi" "_artifacts\" || echo "MSI creation failed"
-      - name: Upload build artifacts
+          cpack -G "NSIS" && move *.exe _artifacts\
+          cpack -G "WIX" && move *.msi _artifacts\
+          
+      - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: win files
+          name: win_files
           path: _build/_artifacts/
           retention-days: 1
 
   create_release:
-    name: Create release
+    name: Publish Release
     needs: [Create_sources_deb_rpm, Create_dmg, Create_msi]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
-      - name: checking out repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: linux files
-          path: release/linux/
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: mac files
-          path: release/mac/
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: win files
-          path: release/win/
-
-      - name: Prepare release assets
+      - name: Download all packages
         run: |
-          mkdir -p release/assets
-          mv release/linux/* release/mac/* release/win/* release/assets/ || true
-          ls -la release/assets/
-
-      - name: get version
+          mkdir -p release_packages
+          actions/download-artifact@v4:
+            name: linux_files
+            path: release_packages/linux
+          actions/download-artifact@v4:
+            name: mac_files
+            path: release_packages/mac
+          actions/download-artifact@v4:
+            name: win_files
+            path: release_packages/win
+          
+      - name: Prepare release
         run: |
-          version=`grep -P ".*_VERSION_.* \d" CMakeLists.txt |  sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//'`
-          echo "Version=$version" >> $GITHUB_ENV
-
-      - name: Create Release
+          mkdir -p release_assets
+          find release_packages -type f -exec cp {} release_assets/ \;
+          ls -la release_assets/
+          
+      - name: Extract version
+        run: |
+          version=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$version" >> $GITHUB_ENV
+          
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.Version }}
-          name: Release v${{ env.Version }}
-          body: "Automated release with built binaries and source code."
+          tag_name: v${{ env.VERSION }}
+          name: "Release v${{ env.VERSION }}"
+          body: "Automated release containing all platform packages"
           files: |
-            release/assets/*
+            release_assets/*
           draft: false
           prerelease: false
