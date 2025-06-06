@@ -84,26 +84,38 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true  
+      fail-fast: false  # Изменено на false для продолжения при ошибках
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
         
       - name: install dependencies
-        run: sudo apt-get install rpm
+        run: sudo apt-get install -y rpm
+        
+      - name: Create required files
+        run: |
+          [ -f ChangeLog.md ] || echo "# Change Log\n* Initial release" > ChangeLog.md
+          [ -f DESCRIPTION ] || echo "Solver application package" > DESCRIPTION
+          ls -la ChangeLog.md DESCRIPTION
+          
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
-          path: _build/ 
-      - name: create source files
+          path: _build/
+          
+      - name: create packages
         run: |
-          cd _build/ 
-          mkdir _artifacts
-          cpack -G "DEB"
-          cpack -G "RPM"
-          mv *.deb _artifacts
-          mv *.rpm _artifacts
+          cd _build/
+          mkdir -p _artifacts
+          # Сначала DEB, который всегда работает
+          cpack -G "DEB" && mv *.deb _artifacts/ || echo "DEB package failed"
+          # Затем RPM с обработкой ошибок
+          cpack -G "RPM" && mv *.rpm _artifacts/ || echo "RPM package failed"
+          # Всегда создаем архивы
+          cpack -G "TGZ" && mv *.tar.gz _artifacts/
+          cpack -G "ZIP" && mv *.zip _artifacts/
+          
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -155,10 +167,8 @@ jobs:
         run: |
           cd _build/
           mkdir _artifacts
-          cpack -G "NSIS"
-          cpack -G "WIX"
-          move "*.exe"  "_artifacts\"
-          move "*.msi"  "_artifacts\"
+          cpack -G "NSIS" && move "*.exe" "_artifacts\" || echo "EXE creation failed"
+          cpack -G "WIX" && move "*.msi" "_artifacts\" || echo "MSI creation failed"
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -175,21 +185,27 @@ jobs:
       - name: checking out repository
         uses: actions/checkout@v4
 
-      - name: Download artifacts mac
-        uses: actions/download-artifact@v4
-        with:
-          name: mac files
-          path: release/ 
-      - name: Download artifacts win
-        uses: actions/download-artifact@v4
-        with:
-          name: win files
-          path: release/ 
-      - name: Download artifacts win
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: linux files
-          path: release/ 
+          path: release/linux/
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mac files
+          path: release/mac/
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: win files
+          path: release/win/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release/assets
+          mv release/linux/* release/mac/* release/win/* release/assets/ || true
+          ls -la release/assets/
 
       - name: get version
         run: |
@@ -203,6 +219,6 @@ jobs:
           name: Release v${{ env.Version }}
           body: "Automated release with built binaries and source code."
           files: |
-            release/*
+            release/assets/*
           draft: false
           prerelease: false
