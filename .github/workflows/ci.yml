@@ -83,24 +83,19 @@ jobs:
       - name: install dependencies
         run: sudo apt-get install -y rpm
         
-      - name: Create mandatory files
+      - name: Create required files in build directory
         run: |
-          echo "# Change Log" > ChangeLog.md
-          echo "* Version ${GITHUB_REF#refs/tags/v} - $(date +'%Y-%m-%d')" >> ChangeLog.md
-          echo "- Initial release" >> ChangeLog.md
-          [ -f DESCRIPTION ] || echo "Solver application package" > DESCRIPTION
+          mkdir -p _build
+          echo "# Change Log" > _build/ChangeLog.md
+          echo "* Version ${GITHUB_REF#refs/tags/v} - $(date +'%Y-%m-%d')" >> _build/ChangeLog.md
+          echo "- Initial release" >> _build/ChangeLog.md
+          echo "Package for solver of quadratic equations application" > _build/DESCRIPTION
           
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
           path: _build/
-          
-      - name: Verify files exist
-        run: |
-          ls -la ChangeLog.md DESCRIPTION
-          cp ChangeLog.md DESCRIPTION _build/
-          ls -la _build/ChangeLog.md _build/DESCRIPTION
           
       - name: Generate packages
         run: |
