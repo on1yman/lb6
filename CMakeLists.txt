@@ -10,6 +10,8 @@ set(PRINT_VERSION
   ${PRINT_VERSION_MAJOR}.${PRINT_VERSION_MINOR}.${PRINT_VERSION_PATCH}.${PRINT_VERSION_TWEAK})
 set(PRINT_VERSION_STRING "v${PRINT_VERSION}")
 
+file(WRITE ${CMAKE_SOURCE_DIR}/DESCRIPTION "Package for solver of quadratic equations application")
+file(WRITE ${CMAKE_SOURCE_DIR}/ChangeLog.md "# Change Log\n* Version ${PRINT_VERSION} - Initial release")
 
 add_subdirectory(solver_application)
 add_subdirectory(hello_world_application)
@@ -19,5 +21,5 @@ install(TARGETS solver_app
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
 )
-        
+
 include(CPackConfig.cmake)
