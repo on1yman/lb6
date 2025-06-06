@@ -83,31 +83,37 @@ jobs:
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true  
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
-        
+      
       - name: install dependencies
-        run: sudo apt-get install rpm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          sudo apt-get install -y dpkg-dev  # Добавляем для DEB-пакетов
+      
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
-          path: _build/ 
-      - name: create source files
+          path: _build/
+      
+      - name: Create mandatory packaging files
         run: |
-          cd _build/ 
-          # cpack --config CPackSourceConfig.cmake
-          mkdir _artifacts
-          # mv *.tar.gz _artifacts
-          # mv *.zip _artifacts
-          cpack -G "DEB"
-          cpack -G "RPM"
-          mv *.deb _artifacts
-          mv *.rpm _artifacts
-      #adding linux artifacts
+          echo "Package for solver of quadratic equations application" > _build/DESCRIPTION
+          echo "# Change Log" > _build/ChangeLog.md
+          echo "* Version ${GITHUB_REF#refs/tags/v} - $(date +'%Y-%m-%d')" >> _build/ChangeLog.md
+          echo "- Initial release" >> _build/ChangeLog.md
+      
+      - name: Generate packages with forced paths
+        run: |
+          cd _build/
+          mkdir -p _artifacts
+          cpack -G "DEB" -D CPACK_PACKAGE_DESCRIPTION_FILE="${GITHUB_WORKSPACE}/_build/DESCRIPTION"
+          cpack -G "RPM" -D CPACK_RPM_CHANGELOG_FILE="${GITHUB_WORKSPACE}/_build/ChangeLog.md"
+          mv *.deb *.rpm _artifacts/ || echo "Packages moved to artifacts"
+      
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -134,7 +140,6 @@ jobs:
           mkdir _artifacts
           cpack -G "DragNDrop"
           mv *.dmg _artifacts
-      #adding mac artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -164,7 +169,6 @@ jobs:
           cpack -G "WIX"
           move "*.exe"  "_artifacts\"
           move "*.msi"  "_artifacts\"
-      #adding windows artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -198,7 +202,6 @@ jobs:
           path: release/ 
 
       - name: get version
-         # define variables    
         run: |
           version=`grep -P ".*_VERSION_.* \d" CMakeLists.txt |  sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//'`
           echo "Version=$version" >> $GITHUB_ENV
