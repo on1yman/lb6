@@ -22,18 +22,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: preparing build
-        run:  cmake -H. -B_build -D CMAKE_CXX_COMPILER=${{matrix.cpp_comp}} -D CMAKE_C_COMPILER=${{matrix.c_comp}} 
+        run: cmake -H. -B_build -D CMAKE_CXX_COMPILER=${{matrix.cpp_comp}} -D CMAKE_C_COMPILER=${{matrix.c_comp}}
+
       - name: building
-        run:  cmake --build _build
+        run: cmake --build _build
+
       - name: checking programs output
-        run:  |
-          echo "1 -5  6" | _build/solver_application/solver_app
+        run: |
+          echo "1 -5 6" | _build/solver_application/solver_app
           _build/hello_world_application/hello
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: _build${{matrix.c_comp}}
-          path: _build/  
+          path: _build/
           retention-days: 1
 
   build_on_windows:
@@ -48,14 +51,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: preparing build
-        run:  cmake . -B_build 
+        run: cmake . -B_build
+
       - name: building
-        run:  cmake --build _build --config Release
+        run: cmake --build _build --config Release
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows_build
-          path: _build/    
+          path: _build/
           retention-days: 1
 
   build_on_mac:
@@ -67,17 +72,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: preparing build
-        run:  cmake -H. -B_build
+        run: cmake -H. -B_build
+
       - name: building
-        run:  cmake --build _build
-  
+        run: cmake --build _build
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: _buildmac
-          path: _build/  
+          path: _build/
           retention-days: 1
-    
+
   Create_sources_deb_rpm:
     name: Create sources, deb, rpm packages
     needs: [build_on_linux, build_on_mac, build_on_windows]
@@ -86,26 +92,25 @@ jobs:
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
-      
+
       - name: install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm
-          sudo apt-get install -y dpkg-dev  # Добавляем для DEB-пакетов
-      
+          sudo apt-get install -y rpm dpkg-dev
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
           path: _build/
-      
+
       - name: Create mandatory packaging files
         run: |
           echo "Package for solver of quadratic equations application" > _build/DESCRIPTION
           echo "# Change Log" > _build/ChangeLog.md
           echo "* Version ${GITHUB_REF#refs/tags/v} - $(date +'%Y-%m-%d')" >> _build/ChangeLog.md
           echo "- Initial release" >> _build/ChangeLog.md
-      
+
       - name: Generate packages with forced paths
         run: |
           cd _build/
@@ -113,7 +118,7 @@ jobs:
           cpack -G "DEB" -D CPACK_PACKAGE_DESCRIPTION_FILE="${GITHUB_WORKSPACE}/_build/DESCRIPTION"
           cpack -G "RPM" -D CPACK_RPM_CHANGELOG_FILE="${GITHUB_WORKSPACE}/_build/ChangeLog.md"
           mv *.deb *.rpm _artifacts/ || echo "Packages moved to artifacts"
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -125,21 +130,24 @@ jobs:
     name: Create .dmg package
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest 
+    runs-on: macos-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildmac
-          path: _build/ 
+          path: _build/
+
       - name: create dmg files
         run: |
-          cd _build/ 
+          cd _build/
           mkdir _artifacts
           cpack -G "DragNDrop"
           mv *.dmg _artifacts
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -151,7 +159,7 @@ jobs:
     name: Create .msi and .exe files
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-latest 
+    runs-on: windows-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
@@ -160,15 +168,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows_build
-          path: _build/ 
+          path: _build/
+
       - name: create .msi and .exe files
         run: |
           cd _build/
           mkdir _artifacts
           cpack -G "NSIS"
           cpack -G "WIX"
-          move "*.exe"  "_artifacts\"
-          move "*.msi"  "_artifacts\"
+          move "*.exe" "_artifacts\"
+          move "*.msi" "_artifacts\"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -180,7 +190,7 @@ jobs:
     name: Create release
     needs: [Create_sources_deb_rpm, Create_dmg, Create_msi]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
       - name: checking out repository
         uses: actions/checkout@v4
@@ -189,21 +199,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mac files
-          path: release/ 
+          path: release/
+
       - name: Download artifacts win
         uses: actions/download-artifact@v4
         with:
           name: win files
-          path: release/ 
-      - name: Download artifacts win
+          path: release/
+
+      - name: Download artifacts linux
         uses: actions/download-artifact@v4
         with:
           name: linux files
-          path: release/ 
+          path: release/
 
       - name: get version
         run: |
-          version=`grep -P ".*_VERSION_.* \d" CMakeLists.txt |  sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//'`
+          version=$(grep -P ".*_VERSION_.* \d" CMakeLists.txt | sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//')
           echo "Version=$version" >> $GITHUB_ENV
 
       - name: Create Release
