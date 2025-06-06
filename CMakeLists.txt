@@ -10,6 +10,7 @@ set(PRINT_VERSION
   ${PRINT_VERSION_MAJOR}.${PRINT_VERSION_MINOR}.${PRINT_VERSION_PATCH}.${PRINT_VERSION_TWEAK})
 set(PRINT_VERSION_STRING "v${PRINT_VERSION}")
 
+
 add_subdirectory(solver_application)
 add_subdirectory(hello_world_application)
 
@@ -18,5 +19,5 @@ install(TARGETS solver_app
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
 )
-
+        
 include(CPackConfig.cmake)
