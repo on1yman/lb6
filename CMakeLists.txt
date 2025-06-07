@@ -19,7 +19,4 @@ install(TARGETS solver_app
         ARCHIVE DESTINATION lib
 )
 
-set(CPACK_RPM_CHANGELOG_FILE "" CACHE STRING "Location of the ChangeLog file")
-set(CPACK_RPM_USE_CHANGELOG_FILE OFF CACHE BOOL "Disable ChangeLog for RPM")
-
-include(CPack)
+include(CPackConfig.cmake)
