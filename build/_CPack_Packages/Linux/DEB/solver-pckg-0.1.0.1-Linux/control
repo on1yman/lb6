@@ -1,0 +1,12 @@
+Architecture: amd64
+Description: solver application that solves quadratic equations
+ DESCRIPTION: &quot;Package for solver of quadratic equations application&quot;
+ .
+Maintainer: noreply@mail.ru
+Package: solver
+Pre-Depends: cmake >= 3.10
+Priority: optional
+Section: devel
+Version: 0.1.0.1-1
+Installed-Size: 28
+

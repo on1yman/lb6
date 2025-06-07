@@ -163,7 +163,7 @@ jobs:
           mkdir _artifacts
           cpack -G NSIS
           cpack -G WIX
-          move "*.exe" "_artifacts\"
+          move "*.exe" "_artifacts\" 
           move "*.msi" "_artifacts\"
 
       - name: Upload build artifacts
