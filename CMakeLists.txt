@@ -19,4 +19,6 @@ install(TARGETS solver_app
         ARCHIVE DESTINATION lib
 )
 
-include(CPackConfig.cmake)
+set(CPACK_RPM_CHANGELOG_FILE "")
+
+include(CPack)
