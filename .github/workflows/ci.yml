@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cpp_comp: g++
+          - cpp_comp: g++ 
             c_comp: gcc
             source: true
           - cpp_comp: clang++
@@ -18,92 +18,94 @@ jobs:
             source: false
 
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: preparing build
-        run:  cmake -H. -B_build -D CMAKE_CXX_COMPILER=${{matrix.cpp_comp}} -D CMAKE_C_COMPILER=${{matrix.c_comp}} 
-      - name: building
-        run:  cmake --build _build
-      - name: checking programs output
-        run:  |
-          echo "1 -5  6" | _build/solver_application/solver_app
+      - name: Prepare build
+        run: cmake -H. -B_build -D CMAKE_CXX_COMPILER=${{matrix.cpp_comp}} -D CMAKE_C_COMPILER=${{matrix.c_comp}}
+
+      - name: Build
+        run: cmake --build _build
+
+      - name: Check programs output
+        run: |
+          echo "1 -5 6" | _build/solver_application/solver_app
           _build/hello_world_application/hello
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: _build${{matrix.c_comp}}
-          path: _build/  
+          path: _build/
           retention-days: 1
 
   build_on_windows:
-    runs-on: ${{matrix.os}}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-
+    runs-on: windows-latest
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: preparing build
-        run:  cmake . -B_build 
-      - name: building
-        run:  cmake --build _build --config Release
+      - name: Prepare build
+        run: cmake . -B_build
+
+      - name: Build
+        run: cmake --build _build --config Release
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows_build
-          path: _build/    
+          path: _build/
           retention-days: 1
 
   build_on_mac:
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: preparing build
-        run:  cmake -H. -B_build
-      - name: building
-        run:  cmake --build _build
-  
+      - name: Prepare build
+        run: cmake -H. -B_build
+
+      - name: Build
+        run: cmake --build _build
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: _buildmac
-          path: _build/  
+          path: _build/
           retention-days: 1
-    
+
   Create_sources_deb_rpm:
     name: Create sources, deb, rpm packages
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true  
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
-      - name: install dependencies
-        run: sudo apt-get install rpm
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm dpkg-dev
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildgcc
-          path: _build/ 
-      - name: create source files
+          path: _build/
+
+      - name: Generate packages
         run: |
-          cd _build/ 
-          mkdir _artifacts
-          cpack -G "DEB"
-          cpack -G "RPM"
-          mv *.deb _artifacts
-          mv *.rpm _artifacts
+          cd _build/
+          mkdir -p _artifacts
+          cpack -G DEB
+          # Убираем RPM:
+          # cpack -G RPM || echo "RPM packaging failed but ignored"
+          mv *.deb _artifacts/ || true
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -115,21 +117,24 @@ jobs:
     name: Create .dmg package
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest 
+    runs-on: macos-latest
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: _buildmac
-          path: _build/ 
-      - name: create dmg files
+          path: _build/
+
+      - name: Create dmg files
         run: |
-          cd _build/ 
+          cd _build/
           mkdir _artifacts
-          cpack -G "DragNDrop"
-          mv *.dmg _artifacts
+          cpack -G DragNDrop
+          mv *.dmg _artifacts/
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -141,24 +146,26 @@ jobs:
     name: Create .msi and .exe files
     needs: [build_on_linux, build_on_mac, build_on_windows]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-latest 
+    runs-on: windows-latest
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows_build
-          path: _build/ 
-      - name: create .msi and .exe files
+          path: _build/
+
+      - name: Create .msi and .exe files
         run: |
           cd _build/
           mkdir _artifacts
-          cpack -G "NSIS"
-          cpack -G "WIX"
-          move "*.exe"  "_artifacts\"
-          move "*.msi"  "_artifacts\"
+          cpack -G NSIS
+          cpack -G WIX
+          move "*.exe" "_artifacts\"
+          move "*.msi" "_artifacts\"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -170,30 +177,32 @@ jobs:
     name: Create release
     needs: [Create_sources_deb_rpm, Create_dmg, Create_msi]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
-      - name: checking out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Download artifacts mac
         uses: actions/download-artifact@v4
         with:
           name: mac files
-          path: release/ 
+          path: release/
+
       - name: Download artifacts win
         uses: actions/download-artifact@v4
         with:
           name: win files
-          path: release/ 
-      - name: Download artifacts win
+          path: release/
+
+      - name: Download artifacts linux
         uses: actions/download-artifact@v4
         with:
           name: linux files
-          path: release/ 
+          path: release/
 
-      - name: get version
+      - name: Get version
         run: |
-          version=`grep -P ".*_VERSION_.* \d" CMakeLists.txt |  sed 's/.*set(.*\(.\).\{1\}$/\1/' | sed -z 's/\n/./g' | sed 's/.$//'`
+          version=$(grep -Po '(?<=set\().*_VERSION_.*\s+\K\d+' CMakeLists.txt | tr '\n' '.' | sed 's/\.$//')
           echo "Version=$version" >> $GITHUB_ENV
 
       - name: Create Release
@@ -202,7 +211,6 @@ jobs:
           tag_name: v${{ env.Version }}
           name: Release v${{ env.Version }}
           body: "Automated release with built binaries and source code."
-          files: |
-            release/*
+          files: release/*
           draft: false
           prerelease: false
