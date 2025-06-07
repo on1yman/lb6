@@ -13,7 +13,7 @@ jobs:
           - cpp_comp: g++ 
             c_comp: gcc
             source: true
-          - cpp_comp: clang++
+          - cpp_comp: clang++ 
             c_comp: clang
             source: false
 
@@ -102,7 +102,6 @@ jobs:
           cd _build/
           mkdir -p _artifacts
           cpack -G DEB
-          # Убираем RPM:
           # cpack -G RPM || echo "RPM packaging failed but ignored"
           mv *.deb _artifacts/ || true
 
@@ -214,3 +213,5 @@ jobs:
           files: release/*
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
